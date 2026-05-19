@@ -703,7 +703,10 @@ export class GatewayBrowserClient {
     this.connectNonce = null;
     this.connectSent = false;
     if (this.connectTimer !== null) window.clearTimeout(this.connectTimer);
-    const SOCKET_OPEN_CONNECT_DELAY_MS = 75;
+    // Give modern gateways time to send connect.challenge first. Sending the
+    // fallback connect too eagerly can race the challenge and leave the browser
+    // waiting forever on local Hermes adapters.
+    const SOCKET_OPEN_CONNECT_DELAY_MS = 500;
     gatewayBrowserDebugLog("queue-connect", { delayMs: SOCKET_OPEN_CONNECT_DELAY_MS });
     this.connectTimer = window.setTimeout(() => {
       void this.sendConnect();

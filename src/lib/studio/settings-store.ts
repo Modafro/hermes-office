@@ -20,6 +20,9 @@ const SETTINGS_DIRNAME = "claw3d";
 const SETTINGS_FILENAME = "settings.json";
 const OPENCLAW_CONFIG_FILENAME = "openclaw.json";
 const DEFAULT_LOCAL_GATEWAY_PORT = 18789;
+const DEFAULT_LOCAL_GATEWAY_HOST = "127.0.0.1";
+
+const localGatewayUrl = (port: number) => `ws://${DEFAULT_LOCAL_GATEWAY_HOST}:${port}`;
 
 export const resolveStudioSettingsPath = () =>
   path.join(resolveStateDir(), SETTINGS_DIRNAME, SETTINGS_FILENAME);
@@ -54,7 +57,7 @@ const readOpenclawGatewayDefaults = (): StudioGatewaySettings | null => {
     const token = typeof auth?.token === "string" ? auth.token.trim() : "";
     const port = typeof gateway.port === "number" && Number.isFinite(gateway.port) ? gateway.port : null;
     if (!token) return null;
-    const url = port ? `ws://localhost:${port}` : `ws://localhost:${DEFAULT_LOCAL_GATEWAY_PORT}`;
+    const url = localGatewayUrl(port ?? DEFAULT_LOCAL_GATEWAY_PORT);
     if (!url) return null;
     return buildGatewaySettings({
       adapterType: "openclaw",
@@ -92,7 +95,7 @@ const readPortBasedGatewayProfile = (
   if (!rawPort) return null;
   const port = Number.parseInt(rawPort, 10);
   if (!Number.isFinite(port) || port <= 0) return null;
-  return buildLocalProfile(`ws://localhost:${port}`);
+  return buildLocalProfile(localGatewayUrl(port));
 };
 
 const buildEnvGatewayDefaults = (): StudioGatewaySettings | null => {

@@ -60,10 +60,33 @@ const DEFAULT_LOCAL_GATEWAY_HOST = "127.0.0.1";
 const DEFAULT_GATEWAY_PORT = 18789;
 const DEFAULT_GATEWAY_URL = `ws://${DEFAULT_LOCAL_GATEWAY_HOST}:${DEFAULT_GATEWAY_PORT}`;
 const OPENCLAW_CONFIG_FILENAME = "openclaw.json";
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
 
 const isRecord = (value) => Boolean(value && typeof value === "object");
 
 const localGatewayUrl = (port) => `ws://${DEFAULT_LOCAL_GATEWAY_HOST}:${port}`;
+
+const normalizeGatewayUrl = (value) => {
+  const url = typeof value === "string" ? value.trim() : "";
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    if (!LOOPBACK_HOSTNAMES.has(parsed.hostname.toLowerCase())) return url;
+    const auth =
+      parsed.username || parsed.password
+        ? `${parsed.username}${parsed.password ? `:${parsed.password}` : ""}@`
+        : "";
+    const host = parsed.port
+      ? `${DEFAULT_LOCAL_GATEWAY_HOST}:${parsed.port}`
+      : DEFAULT_LOCAL_GATEWAY_HOST;
+    const dropDefaultPath =
+      parsed.pathname === "/" && !url.endsWith("/") && !parsed.search && !parsed.hash;
+    const pathname = dropDefaultPath ? "" : parsed.pathname;
+    return `${parsed.protocol}//${auth}${host}${pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+};
 
 const normalizeAdapterType = (value) => {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -91,7 +114,7 @@ const buildEnvGatewayDefaults = (env = process.env) => {
     normalizeAdapterType(env.CLAW3D_GATEWAY_ADAPTER_TYPE) ||
     (hermesDefaults ? "hermes" : demoDefaults ? "demo" : "openclaw");
 
-  if (envUrl) return { url: envUrl, token, adapterType };
+  if (envUrl) return { url: normalizeGatewayUrl(envUrl), token, adapterType };
   return hermesDefaults || demoDefaults || null;
 };
 
@@ -128,7 +151,7 @@ const loadUpstreamGatewaySettings = (env = process.env) => {
 
   const parsed = readJsonFile(settingsPath);
   const gateway = parsed && typeof parsed === "object" ? parsed.gateway : null;
-  const url = typeof gateway?.url === "string" ? gateway.url.trim() : "";
+  const url = normalizeGatewayUrl(gateway?.url);
   const token = typeof gateway?.token === "string" ? gateway.token.trim() : "";
   const adapterType =
     typeof gateway?.adapterType === "string" && gateway.adapterType.trim()

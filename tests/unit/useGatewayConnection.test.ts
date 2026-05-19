@@ -145,7 +145,7 @@ describe("useGatewayConnection", () => {
     render(createElement(Probe));
 
     await waitFor(() => {
-      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://localhost:18789");
+      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://127.0.0.1:18789");
     });
   });
 
@@ -242,7 +242,7 @@ describe("useGatewayConnection", () => {
     expect(captured.clientName).toBe("webchat-ui");
   });
 
-  it("keeps_control_ui_identity_for_local_openclaw_connections", async () => {
+  it("connects_directly_to_local_hermes_loopback_gateways", async () => {
     const { useGatewayConnection, captured } = await setupAndImportHook(null);
     const coordinator = {
       loadSettings: async () => null,
@@ -250,11 +250,58 @@ describe("useGatewayConnection", () => {
         settings: {
           version: 1,
           gateway: {
-            url: "ws://localhost:18789",
+            url: "ws://127.0.0.1:18789",
+            token: "",
+            adapterType: "hermes",
+            lastKnownGood: {
+              url: "ws://127.0.0.1:18789",
+              token: "",
+              adapterType: "hermes",
+            },
+          },
+          focused: {},
+          avatars: {},
+          analytics: {},
+          voiceReplies: {},
+          office: {},
+          deskAssignments: {},
+          standup: {},
+          taskBoard: {},
+        },
+        localGatewayDefaults: null,
+      }),
+      schedulePatch: () => {},
+      flushPending: async () => {},
+    };
+
+    const Probe = () => {
+      useGatewayConnection(coordinator);
+      return createElement("div", null, "ok");
+    };
+
+    render(createElement(Probe));
+
+    await waitFor(() => {
+      expect(captured.url).toBe("ws://127.0.0.1:18789");
+    });
+    expect(captured.token).toBe("");
+    expect(captured.authScopeKey).toBe("ws://127.0.0.1:18789");
+    expect(captured.clientName).toBe("openclaw-control-ui");
+  });
+
+  it("keeps_local_openclaw_connections_behind_the_studio_proxy", async () => {
+    const { useGatewayConnection, captured } = await setupAndImportHook(null);
+    const coordinator = {
+      loadSettings: async () => null,
+      loadSettingsEnvelope: async () => ({
+        settings: {
+          version: 1,
+          gateway: {
+            url: "ws://127.0.0.1:18789",
             token: "shared-token",
             adapterType: "openclaw",
             lastKnownGood: {
-              url: "ws://localhost:18789",
+              url: "ws://127.0.0.1:18789",
               token: "shared-token",
               adapterType: "openclaw",
             },
@@ -284,7 +331,7 @@ describe("useGatewayConnection", () => {
     await waitFor(() => {
       expect(captured.url).toBe("ws://localhost:3000/api/gateway/ws");
     });
-    expect(captured.authScopeKey).toBe("ws://localhost:18789");
+    expect(captured.authScopeKey).toBe("ws://127.0.0.1:18789");
     expect(captured.clientName).toBe("openclaw-control-ui");
   });
 
@@ -295,7 +342,7 @@ describe("useGatewayConnection", () => {
         settings: {
           version: 1,
           gateway: {
-            url: "ws://localhost:18789",
+            url: "ws://127.0.0.1:18789",
             token: "",
             adapterType: "hermes",
           },
@@ -332,7 +379,7 @@ describe("useGatewayConnection", () => {
     render(createElement(Probe));
 
     await waitFor(() => {
-      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://localhost:18789");
+      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://127.0.0.1:18789");
     });
     expect(screen.getByTestId("shouldPromptForConnect")).toHaveTextContent("yes");
     expect(captured.url).toBeNull();
@@ -362,10 +409,10 @@ describe("useGatewayConnection", () => {
     expect(mod.resolveGatewayClientName("openclaw", "wss://pi5.myth-coho.ts.net")).toBe(
       "webchat-ui"
     );
-    expect(mod.resolveGatewayClientName("openclaw", "ws://localhost:18789")).toBe(
+    expect(mod.resolveGatewayClientName("openclaw", "ws://127.0.0.1:18789")).toBe(
       "openclaw-control-ui"
     );
-    expect(mod.resolveGatewayClientName("hermes", "ws://localhost:18789")).toBe(
+    expect(mod.resolveGatewayClientName("hermes", "ws://127.0.0.1:18789")).toBe(
       "openclaw-control-ui"
     );
   });
@@ -440,7 +487,7 @@ describe("useGatewayConnection", () => {
           analytics: {},
           voiceReplies: {},
         },
-        localGatewayDefaults: { url: "ws://localhost:18789", token: "local-token" },
+        localGatewayDefaults: { url: "ws://127.0.0.1:18789", token: "local-token" },
       }),
       schedulePatch: () => {},
       flushPending: async () => {},
@@ -476,12 +523,12 @@ describe("useGatewayConnection", () => {
       expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("wss://remote.example");
     });
     expect(screen.getByTestId("token")).toHaveTextContent("remote-token");
-    expect(screen.getByTestId("localDefaultsUrl")).toHaveTextContent("ws://localhost:18789");
+    expect(screen.getByTestId("localDefaultsUrl")).toHaveTextContent("ws://127.0.0.1:18789");
 
     fireEvent.click(screen.getByTestId("useLocalDefaults"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://localhost:18789");
+      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://127.0.0.1:18789");
     });
     expect(screen.getByTestId("token")).toHaveTextContent("local-token");
   });
@@ -494,7 +541,7 @@ describe("useGatewayConnection", () => {
         settings: {
           version: 1,
           gateway: {
-            url: "ws://localhost:18789",
+            url: "ws://127.0.0.1:18789",
             token: "",
             adapterType: "hermes",
           },
@@ -560,7 +607,7 @@ describe("useGatewayConnection", () => {
         settings: {
           version: 1,
           gateway: {
-            url: "ws://localhost:18789",
+            url: "ws://127.0.0.1:18789",
             token: "",
             adapterType: "hermes",
             lastKnownGood: {
@@ -603,7 +650,7 @@ describe("useGatewayConnection", () => {
     render(createElement(Probe));
 
     await waitFor(() => {
-      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://localhost:18789");
+      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://127.0.0.1:18789");
     });
     expect(screen.getByTestId("selectedAdapterType")).toHaveTextContent("hermes");
     expect(screen.getByTestId("shouldPromptForConnect")).toHaveTextContent("yes");
@@ -809,11 +856,11 @@ describe("useGatewayConnection", () => {
         settings: {
           version: 1,
           gateway: {
-            url: "ws://localhost:18789",
+            url: "ws://127.0.0.1:18789",
             token: "",
             adapterType: "hermes",
             profiles: {
-              hermes: { url: "ws://localhost:18789", token: "" },
+              hermes: { url: "ws://127.0.0.1:18789", token: "" },
               custom: { url: "http://127.0.0.1:7770", token: "" },
             },
           },
@@ -854,7 +901,7 @@ describe("useGatewayConnection", () => {
     render(createElement(Probe));
 
     await waitFor(() => {
-      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://localhost:18789");
+      expect(screen.getByTestId("gatewayUrl")).toHaveTextContent("ws://127.0.0.1:18789");
     });
 
     fireEvent.click(screen.getByTestId("switch-custom"));

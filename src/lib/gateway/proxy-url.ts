@@ -1,8 +1,15 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
-export const resolveStudioProxyGatewayUrl = (upstreamGatewayUrl?: string): string => {
+export type StudioProxyGatewayUrlOptions = {
+  allowDirectLoopback?: boolean;
+};
+
+export const resolveStudioProxyGatewayUrl = (
+  upstreamGatewayUrl?: string,
+  options: StudioProxyGatewayUrlOptions = {}
+): string => {
   const raw = typeof upstreamGatewayUrl === "string" ? upstreamGatewayUrl.trim() : "";
-  if (raw) {
+  if (raw && options.allowDirectLoopback === true) {
     try {
       const parsed = new URL(raw);
       if (LOOPBACK_HOSTS.has(parsed.hostname)) {

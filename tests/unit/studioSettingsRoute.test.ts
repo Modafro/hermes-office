@@ -65,23 +65,23 @@ describe("studio settings route", () => {
 
     expect(response.status).toBe(200);
     expect(body.localGatewayDefaults).toEqual({
-      url: "ws://localhost:18791",
+      url: "ws://127.0.0.1:18791",
       tokenConfigured: true,
       adapterType: "openclaw",
       profiles: {
         openclaw: {
-          url: "ws://localhost:18791",
+          url: "ws://127.0.0.1:18791",
           tokenConfigured: true,
         },
       },
     });
     expect(body.settings?.gateway).toEqual({
-      url: "ws://localhost:18791",
+      url: "ws://127.0.0.1:18791",
       tokenConfigured: true,
       adapterType: "openclaw",
       profiles: {
         openclaw: {
-          url: "ws://localhost:18791",
+          url: "ws://127.0.0.1:18791",
           tokenConfigured: true,
         },
       },

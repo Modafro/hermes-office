@@ -23,27 +23,27 @@ describe("studio settings normalization", () => {
     expect(normalized.office).toEqual({});
   });
 
-  it("normalizes gateway entries", () => {
+  it("normalizes localhost gateway entries to IPv4 loopback", () => {
     const normalized = normalizeStudioSettings({
       gateway: { url: " ws://localhost:18789 ", token: " token " },
     });
 
-    expect(normalized.gateway?.url).toBe("ws://localhost:18789");
+    expect(normalized.gateway?.url).toBe("ws://127.0.0.1:18789");
     expect(normalized.gateway?.token).toBe("token");
   });
 
-  it("normalizes loopback ip gateway urls to localhost", () => {
+  it("keeps loopback ip gateway urls on IPv4 loopback", () => {
     const normalized = normalizeStudioSettings({
       gateway: { url: "ws://127.0.0.1:18789", token: "token" },
     });
 
-    expect(normalized.gateway?.url).toBe("ws://localhost:18789");
+    expect(normalized.gateway?.url).toBe("ws://127.0.0.1:18789");
   });
 
   it("normalizes_dual_mode_preferences", () => {
     const normalized = normalizeStudioSettings({
       focused: {
-        " ws://localhost:18789 ": {
+        " ws://127.0.0.1:18789 ": {
           mode: "focused",
           selectedAgentId: " agent-2 ",
           filter: "running",
@@ -56,7 +56,7 @@ describe("studio settings normalization", () => {
       },
     });
 
-    expect(normalized.focused["ws://localhost:18789"]).toEqual({
+    expect(normalized.focused["ws://127.0.0.1:18789"]).toEqual({
       mode: "focused",
       selectedAgentId: "agent-2",
       filter: "running",
@@ -71,7 +71,7 @@ describe("studio settings normalization", () => {
   it("normalizes_legacy_idle_filter_to_approvals", () => {
     const normalized = normalizeStudioSettings({
       focused: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           mode: "focused",
           selectedAgentId: "agent-1",
           filter: "idle",
@@ -79,7 +79,7 @@ describe("studio settings normalization", () => {
       },
     });
 
-    expect(normalized.focused["ws://localhost:18789"]).toEqual({
+    expect(normalized.focused["ws://127.0.0.1:18789"]).toEqual({
       mode: "focused",
       selectedAgentId: "agent-1",
       filter: "approvals",
@@ -89,7 +89,7 @@ describe("studio settings normalization", () => {
   it("merges_dual_mode_preferences", () => {
     const current = normalizeStudioSettings({
       focused: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           mode: "focused",
           selectedAgentId: "main",
           filter: "all",
@@ -99,13 +99,13 @@ describe("studio settings normalization", () => {
 
     const merged = mergeStudioSettings(current, {
       focused: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           filter: "approvals",
         },
       },
     });
 
-    expect(merged.focused["ws://localhost:18789"]).toEqual({
+    expect(merged.focused["ws://127.0.0.1:18789"]).toEqual({
       mode: "focused",
       selectedAgentId: "main",
       filter: "approvals",
@@ -115,7 +115,7 @@ describe("studio settings normalization", () => {
   it("normalizes avatar seeds per gateway", () => {
     const normalized = normalizeStudioSettings({
       avatars: {
-        " ws://localhost:18789 ": {
+        " ws://127.0.0.1:18789 ": {
           " agent-1 ": " seed-1 ",
           " agent-2 ": " ",
         },
@@ -123,7 +123,7 @@ describe("studio settings normalization", () => {
       },
     });
 
-    expect(normalized.avatars["ws://localhost:18789"]?.["agent-1"]?.seed).toBe("seed-1");
+    expect(normalized.avatars["ws://127.0.0.1:18789"]?.["agent-1"]?.seed).toBe("seed-1");
   });
 
   it("merges avatar patches", () => {
@@ -132,7 +132,7 @@ describe("studio settings normalization", () => {
     const secondProfile = createDefaultAgentAvatarProfile("seed-3");
     const current = normalizeStudioSettings({
       avatars: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           "agent-1": firstProfile,
         },
       },
@@ -140,21 +140,21 @@ describe("studio settings normalization", () => {
 
     const merged = mergeStudioSettings(current, {
       avatars: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           "agent-1": replacementProfile,
           "agent-2": secondProfile,
         },
       },
     });
 
-    expect(merged.avatars["ws://localhost:18789"]?.["agent-1"]?.seed).toBe("seed-2");
-    expect(merged.avatars["ws://localhost:18789"]?.["agent-2"]?.seed).toBe("seed-3");
+    expect(merged.avatars["ws://127.0.0.1:18789"]?.["agent-1"]?.seed).toBe("seed-2");
+    expect(merged.avatars["ws://127.0.0.1:18789"]?.["agent-2"]?.seed).toBe("seed-3");
   });
 
   it("normalizes office title preferences per gateway", () => {
     const normalized = normalizeStudioSettings({
       office: {
-        " ws://localhost:18789 ": {
+        " ws://127.0.0.1:18789 ": {
           title: "  Team Orbit  ",
         },
         bad: {
@@ -163,7 +163,7 @@ describe("studio settings normalization", () => {
       },
     });
 
-    expect(normalized.office["ws://localhost:18789"]).toEqual(
+    expect(normalized.office["ws://127.0.0.1:18789"]).toEqual(
       expect.objectContaining({
         title: "Team Orbit",
       }),
@@ -178,7 +178,7 @@ describe("studio settings normalization", () => {
   it("merges office title patches", () => {
     const current = normalizeStudioSettings({
       office: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           title: "Luke Headquarters",
         },
       },
@@ -186,13 +186,13 @@ describe("studio settings normalization", () => {
 
     const merged = mergeStudioSettings(current, {
       office: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           title: "Orbit Control",
         },
       },
     });
 
-    expect(merged.office["ws://localhost:18789"]).toEqual(
+    expect(merged.office["ws://127.0.0.1:18789"]).toEqual(
       expect.objectContaining({
         title: "Orbit Control",
       }),
@@ -232,7 +232,7 @@ describe("studio settings normalization", () => {
         floorId: "hermes-first",
         provider: "hermes",
         runtimeProfileId: "hermes-pi",
-        gatewayUrl: "ws://localhost:18789",
+        gatewayUrl: "ws://127.0.0.1:18789",
         status: "connected",
         lastKnownGoodAt: 1234,
         lastErrorCode: "ignored",
@@ -253,7 +253,7 @@ describe("studio settings normalization", () => {
     expect(merged.officeFloors["hermes-first"]).toEqual(
       expect.objectContaining({
         runtimeProfileId: "hermes-pi",
-        gatewayUrl: "ws://localhost:18789",
+        gatewayUrl: "ws://127.0.0.1:18789",
         status: "error",
         lastErrorCode: "connect_timeout",
         lastErrorMessage: "Timed out connecting",
@@ -284,7 +284,7 @@ describe("studio settings normalization", () => {
   it("normalizes task board cards per gateway", () => {
     const normalized = normalizeStudioSettings({
       taskBoard: {
-        " ws://localhost:18789 ": {
+        " ws://127.0.0.1:18789 ": {
           cards: [
             {
               id: " task-1 ",
@@ -302,7 +302,7 @@ describe("studio settings normalization", () => {
       },
     });
 
-    expect(normalized.taskBoard?.["ws://localhost:18789"]).toEqual(
+    expect(normalized.taskBoard?.["ws://127.0.0.1:18789"]).toEqual(
       expect.objectContaining({
         selectedCardId: "task-1",
         cards: [
@@ -320,7 +320,7 @@ describe("studio settings normalization", () => {
   it("merges task board patches", () => {
     const current = normalizeStudioSettings({
       taskBoard: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           cards: [
             {
               id: "task-1",
@@ -349,7 +349,7 @@ describe("studio settings normalization", () => {
 
     const merged = mergeStudioSettings(current, {
       taskBoard: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           cards: [
             {
               id: "task-2",
@@ -376,7 +376,7 @@ describe("studio settings normalization", () => {
       },
     });
 
-    expect(merged.taskBoard?.["ws://localhost:18789"]).toEqual(
+    expect(merged.taskBoard?.["ws://127.0.0.1:18789"]).toEqual(
       expect.objectContaining({
         selectedCardId: "task-2",
         cards: [
@@ -394,12 +394,12 @@ describe("studio settings normalization", () => {
     const resolved = resolveStudioGatewayProfiles({
       gateway: normalizeStudioSettings({
         gateway: {
-          url: "ws://localhost:28789",
+          url: "ws://127.0.0.1:28789",
           token: "",
           adapterType: "hermes",
           profiles: {
-            openclaw: { url: "ws://localhost:18789", token: "open-token" },
-            demo: { url: "ws://localhost:38789", token: "" },
+            openclaw: { url: "ws://127.0.0.1:18789", token: "open-token" },
+            demo: { url: "ws://127.0.0.1:38789", token: "" },
           },
         },
       }).gateway,
@@ -408,14 +408,14 @@ describe("studio settings normalization", () => {
 
     expect(resolved.selectedAdapterType).toBe("hermes");
     expect(resolved.activeProfile).toEqual({
-      url: "ws://localhost:28789",
+      url: "ws://127.0.0.1:28789",
       token: "",
     });
     expect(resolved.profiles).toEqual(
       expect.objectContaining({
-        openclaw: { url: "ws://localhost:18789", token: "open-token" },
-        hermes: { url: "ws://localhost:28789", token: "" },
-        demo: { url: "ws://localhost:38789", token: "" },
+        openclaw: { url: "ws://127.0.0.1:18789", token: "open-token" },
+        hermes: { url: "ws://127.0.0.1:28789", token: "" },
+        demo: { url: "ws://127.0.0.1:38789", token: "" },
       }),
     );
   });
@@ -434,7 +434,7 @@ describe("studio settings normalization", () => {
       token: "",
     });
     expect(resolveDefaultStudioGatewayProfile("demo", null)).toEqual({
-      url: "ws://localhost:18789",
+      url: "ws://127.0.0.1:18789",
       token: "",
     });
   });
@@ -442,10 +442,10 @@ describe("studio settings normalization", () => {
   it("merging lastKnownGood with an empty-string token does not overwrite a stored token", () => {
     const current = normalizeStudioSettings({
       gateway: {
-        url: "ws://localhost:18789",
+        url: "ws://127.0.0.1:18789",
         token: "stored-token",
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "stored-token",
           adapterType: "openclaw",
         },
@@ -455,7 +455,7 @@ describe("studio settings normalization", () => {
     const merged = mergeStudioSettings(current, {
       gateway: {
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "",
           adapterType: "openclaw",
         },
@@ -468,10 +468,10 @@ describe("studio settings normalization", () => {
   it("merging lastKnownGood with a real token overwrites the stored token", () => {
     const current = normalizeStudioSettings({
       gateway: {
-        url: "ws://localhost:18789",
+        url: "ws://127.0.0.1:18789",
         token: "old-token",
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "old-token",
           adapterType: "openclaw",
         },
@@ -481,7 +481,7 @@ describe("studio settings normalization", () => {
     const merged = mergeStudioSettings(current, {
       gateway: {
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "new-token",
           adapterType: "openclaw",
         },
@@ -494,10 +494,10 @@ describe("studio settings normalization", () => {
   it("merging lastKnownGood with undefined token leaves the stored token unchanged", () => {
     const current = normalizeStudioSettings({
       gateway: {
-        url: "ws://localhost:18789",
+        url: "ws://127.0.0.1:18789",
         token: "stored-token",
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "stored-token",
           adapterType: "openclaw",
         },
@@ -507,7 +507,7 @@ describe("studio settings normalization", () => {
     const merged = mergeStudioSettings(current, {
       gateway: {
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           adapterType: "openclaw",
         },
       },

@@ -118,7 +118,7 @@ const parseConnectFailedCloseReason = (
 };
 
 const DEFAULT_UPSTREAM_GATEWAY_URL =
-  process.env.NEXT_PUBLIC_GATEWAY_URL || "ws://localhost:18789";
+  process.env.NEXT_PUBLIC_GATEWAY_URL || "ws://127.0.0.1:18789";
 const INITIAL_AUTO_CONNECT_DELAY_MS = 900;
 const INITIAL_CONNECT_RETRY_DELAY_MS = 1_200;
 const OPENCLAW_CONTROL_UI_CLIENT_ID = "openclaw-control-ui";
@@ -918,7 +918,10 @@ export const useGatewayConnection = (
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
           await client.connect({
-            gatewayUrl: resolveStudioProxyGatewayUrl(),
+            gatewayUrl: resolveStudioProxyGatewayUrl(gatewayUrl, {
+              allowDirectLoopback:
+                selectedAdapterType === "hermes" || selectedAdapterType === "demo",
+            }),
             token,
             authScopeKey: gatewayUrl,
             clientName: resolveGatewayClientName(selectedAdapterType, gatewayUrl),

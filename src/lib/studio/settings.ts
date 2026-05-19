@@ -281,8 +281,8 @@ export type StudioSettingsPatch = {
 };
 
 const SETTINGS_VERSION = 1 as const;
-const DEFAULT_OPENCLAW_GATEWAY_URL = "ws://localhost:18789";
-const DEFAULT_LOCAL_ADAPTER_GATEWAY_URL = "ws://localhost:18789";
+const DEFAULT_OPENCLAW_GATEWAY_URL = "ws://127.0.0.1:18789";
+const DEFAULT_LOCAL_ADAPTER_GATEWAY_URL = "ws://127.0.0.1:18789";
 const DEFAULT_LOCAL_RUNTIME_URL = "http://localhost:7770";
 const DEFAULT_CLAW3D_RUNTIME_URL = "http://localhost:3000/api/runtime/custom";
 const DEFAULT_CUSTOM_RUNTIME_URL = "http://localhost:7770";
@@ -291,21 +291,25 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object");
 
 const coerceString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "0.0.0.0"]);
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
+const CANONICAL_LOOPBACK_HOSTNAME = "127.0.0.1";
 
 const normalizeGatewayUrl = (value: unknown) => {
   const url = coerceString(value);
   if (!url) return "";
   try {
     const parsed = new URL(url);
-    if (!LOOPBACK_HOSTNAMES.has(parsed.hostname.toLowerCase())) {
+    const hostname = parsed.hostname.toLowerCase();
+    if (!LOOPBACK_HOSTNAMES.has(hostname)) {
       return url;
     }
     const auth =
       parsed.username || parsed.password
         ? `${parsed.username}${parsed.password ? `:${parsed.password}` : ""}@`
         : "";
-    const host = parsed.port ? `localhost:${parsed.port}` : "localhost";
+    const host = parsed.port
+      ? `${CANONICAL_LOOPBACK_HOSTNAME}:${parsed.port}`
+      : CANONICAL_LOOPBACK_HOSTNAME;
     const dropDefaultPath =
       parsed.pathname === "/" && !url.endsWith("/") && !parsed.search && !parsed.hash;
     const pathname = dropDefaultPath ? "" : parsed.pathname;

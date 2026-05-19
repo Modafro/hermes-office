@@ -71,6 +71,7 @@ const AGENT_ID = "hermes";
 const MAIN_KEY = "main";
 const MAIN_SESSION_KEY = `agent:${AGENT_ID}:${MAIN_KEY}`;
 const CONFIG_PATH = `${HOME}/.hermes/config.json`;
+const AGENTS_FILE = path.join(HOME, ".hermes", "clawd3d-agents.json");
 const MAX_TOOL_ROUNDS = 8;
 
 // ---------------------------------------------------------------------------
@@ -239,6 +240,92 @@ const agentRegistry = new Map([
 // Set of all active sendEvent functions (one per connected WS client)
 /** @type {Set<(frame: object) => void>} */
 const activeSendEventFns = new Set();
+
+function normalizeAgentRecord(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!id || id === AGENT_ID || !name) return null;
+  const workspace = typeof raw.workspace === "string" && raw.workspace.trim()
+    ? raw.workspace.trim()
+    : `${HOME}/.hermes/workspace-${id}`;
+  const role = typeof raw.role === "string" ? raw.role.trim() : "";
+  const systemPrompt = typeof raw.systemPrompt === "string" && raw.systemPrompt.trim()
+    ? raw.systemPrompt.trim()
+    : `You are ${name}, a ${role || "specialist"} agent.`;
+  const settings = raw.settings && typeof raw.settings === "object" ? raw.settings : {};
+  return {
+    id,
+    name,
+    workspace,
+    role,
+    systemPrompt,
+    settings: {
+      wipe: Boolean(settings.wipe),
+      continuity: settings.continuity !== false,
+      model: typeof settings.model === "string" && settings.model.trim() ? settings.model.trim() : HERMES_MODEL,
+      ...(typeof settings.boundaries === "string" && settings.boundaries.trim()
+        ? { boundaries: settings.boundaries.trim() }
+        : {}),
+    },
+  };
+}
+
+function loadAgentRegistryFromDisk() {
+  try {
+    if (!fs.existsSync(AGENTS_FILE)) return;
+    const raw = fs.readFileSync(AGENTS_FILE, "utf8");
+    const data = JSON.parse(raw);
+    const entries = Array.isArray(data?.agents) ? data.agents : [];
+    let loaded = 0;
+    for (const entry of entries) {
+      const normalized = normalizeAgentRecord(entry);
+      if (!normalized) continue;
+      agentRegistry.set(normalized.id, normalized);
+      loaded += 1;
+    }
+    if (loaded > 0) {
+      console.log(`[hermes-adapter] Loaded ${loaded} persisted agent(s).`);
+    }
+  } catch (err) {
+    console.warn("[hermes-adapter] Failed to load persisted agents:", sanitizeErrorMessage(err));
+  }
+}
+
+function saveAgentRegistryToDisk() {
+  try {
+    const agents = [...agentRegistry.values()]
+      .filter((agent) => agent.id !== AGENT_ID)
+      .map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        workspace: agent.workspace,
+        role: agent.role || "",
+        systemPrompt: agent.systemPrompt || `You are ${agent.name}.`,
+        settings: agent.settings || { wipe: false, continuity: true, model: HERMES_MODEL },
+      }));
+    fs.mkdirSync(path.dirname(AGENTS_FILE), { recursive: true });
+    fs.writeFileSync(AGENTS_FILE, JSON.stringify({ version: 1, agents }, null, 2));
+  } catch (err) {
+    console.warn("[hermes-adapter] Failed to save persisted agents:", sanitizeErrorMessage(err));
+  }
+}
+
+function broadcastPresence() {
+  broadcastEvent({
+    type: "event",
+    event: "presence",
+    payload: {
+      sessions: {
+        recent: [],
+        byAgent: [...agentRegistry.keys()].map((aid) => ({
+          agentId: aid,
+          recent: [],
+        })),
+      },
+    },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Disk persistence for conversation history
@@ -586,22 +673,12 @@ async function execSpawnAgent(args) {
     id: newId, name, workspace: `${HOME}/.hermes/workspace-${slug}`,
     role, systemPrompt, settings: { wipe, continuity, model, boundaries },
   });
+  saveAgentRegistryToDisk();
 
   console.log(`[hermes-adapter] Spawned agent: ${name} (${newId})`);
 
   // Broadcast presence so the 3D office loads the new agent immediately
-  broadcastEvent({
-    type: "event", event: "presence",
-    payload: {
-      sessions: {
-        recent: [],
-        byAgent: [...agentRegistry.keys()].map((aid) => ({
-          agentId: aid,
-          recent: [],
-        })),
-      },
-    },
-  });
+  broadcastPresence();
 
   return JSON.stringify({ ok: true, agent_id: newId, name, role });
 }
@@ -689,19 +766,9 @@ function execConfigureAgent(args) {
     }
   }
   if (typeof args.model === "string" && args.model.trim()) agent.settings.model = args.model.trim();
+  saveAgentRegistryToDisk();
   console.log(`[hermes-adapter] Configured agent: ${agent.name} (${targetId})`);
-  broadcastEvent({
-    type: "event", event: "presence",
-    payload: {
-      sessions: {
-        recent: [],
-        byAgent: [...agentRegistry.keys()].map((aid) => ({
-          agentId: aid,
-          recent: [],
-        })),
-      },
-    },
-  });
+  broadcastPresence();
   return JSON.stringify({ ok: true, agent_id: targetId, name: agent.name, role: agent.role, settings: agent.settings });
 }
 
@@ -712,6 +779,8 @@ function execDismissAgent(args) {
   if (!agent) return JSON.stringify({ ok: false, error: `Agent ${targetId} not found` });
   agentRegistry.delete(targetId);
   clearHistory(`agent:${targetId}:${MAIN_KEY}`);
+  saveAgentRegistryToDisk();
+  broadcastPresence();
   console.log(`[hermes-adapter] Dismissed agent: ${agent.name} (${targetId})`);
   return JSON.stringify({ ok: true, dismissed: targetId });
 }
@@ -850,11 +919,19 @@ async function handleMethod(method, params, id, sendEvent) {
       const newId = `${slug}-${randomId().slice(0, 6)}`;
       const workspace = (typeof p.workspace === "string" && p.workspace)
         ? p.workspace : `${HOME}/.hermes/workspace-${slug}`;
+      const role = typeof p.role === "string" ? p.role.trim() : "";
+      const instructions = typeof p.instructions === "string" ? p.instructions.trim() : "";
+      const systemPrompt = typeof p.systemPrompt === "string" && p.systemPrompt.trim()
+        ? p.systemPrompt.trim()
+        : instructions || `You are ${agentName}, a ${role || "specialist"} agent.`;
+      const model = typeof p.model === "string" && p.model.trim() ? p.model.trim() : HERMES_MODEL;
       agentRegistry.set(newId, {
         id: newId, name: agentName, workspace,
-        role: "", systemPrompt: `You are ${agentName}.`,
-        settings: { wipe: false, continuity: true, model: HERMES_MODEL },
+        role, systemPrompt,
+        settings: { wipe: false, continuity: true, model },
       });
+      saveAgentRegistryToDisk();
+      broadcastPresence();
       return resOk(id, { agentId: newId, name: agentName, workspace });
     }
 
@@ -863,6 +940,8 @@ async function handleMethod(method, params, id, sendEvent) {
       if (delId && delId !== AGENT_ID) {
         agentRegistry.delete(delId);
         clearHistory(`agent:${delId}:${MAIN_KEY}`);
+        saveAgentRegistryToDisk();
+        broadcastPresence();
       }
       return resOk(id, { ok: true, removedBindings: 0 });
     }
@@ -874,6 +953,11 @@ async function handleMethod(method, params, id, sendEvent) {
         if (typeof p.name === "string" && p.name.trim()) existing.name = p.name.trim();
         if (typeof p.workspace === "string" && p.workspace.trim()) existing.workspace = p.workspace.trim();
         if (typeof p.role === "string") existing.role = p.role.trim();
+        if (typeof p.instructions === "string") existing.systemPrompt = p.instructions.trim() || existing.systemPrompt;
+        if (typeof p.systemPrompt === "string") existing.systemPrompt = p.systemPrompt.trim() || existing.systemPrompt;
+        if (typeof p.model === "string" && p.model.trim()) existing.settings.model = p.model.trim();
+        saveAgentRegistryToDisk();
+        broadcastPresence();
       }
       return resOk(id, { ok: true, removedBindings: 0 });
     }
@@ -1316,5 +1400,6 @@ async function startAdapter() {
   });
 }
 
+loadAgentRegistryFromDisk();
 loadHistoryFromDisk();
 startAdapter();

@@ -87,7 +87,7 @@ describe("loadLocalGatewayDefaults with CLAW3D_GATEWAY_URL", () => {
       adapterType: "hermes",
       profiles: {
         hermes: { url: "ws://env-gateway:18789", token: "env-token" },
-        openclaw: { url: "ws://localhost:18791", token: "file-token" },
+        openclaw: { url: "ws://127.0.0.1:18791", token: "file-token" },
       },
     });
   });
@@ -121,11 +121,11 @@ describe("loadLocalGatewayDefaults with CLAW3D_GATEWAY_URL", () => {
     );
     const result = loadLocalGatewayDefaults();
     expect(result).toEqual({
-      url: "ws://localhost:19444",
+      url: "ws://127.0.0.1:19444",
       token: "",
       adapterType: "hermes",
       profiles: {
-        hermes: { url: "ws://localhost:19444", token: "" },
+        hermes: { url: "ws://127.0.0.1:19444", token: "" },
       },
     });
   });
@@ -155,12 +155,12 @@ describe("loadLocalGatewayDefaults with CLAW3D_GATEWAY_URL", () => {
     const result = loadLocalGatewayDefaults();
 
     expect(result).toEqual({
-      url: "ws://localhost:19444",
+      url: "ws://127.0.0.1:19444",
       token: "",
       adapterType: "hermes",
       profiles: {
-        hermes: { url: "ws://localhost:19444", token: "" },
-        openclaw: { url: "ws://localhost:18789", token: "file-token" },
+        hermes: { url: "ws://127.0.0.1:19444", token: "" },
+        openclaw: { url: "ws://127.0.0.1:18789", token: "file-token" },
       },
     });
   });
@@ -193,7 +193,7 @@ describe("loadLocalGatewayDefaults with CLAW3D_GATEWAY_URL", () => {
       token: "env-token",
       adapterType: "hermes",
       profiles: {
-        openclaw: { url: "ws://localhost:18789", token: "file-token" },
+        openclaw: { url: "ws://127.0.0.1:18789", token: "file-token" },
         hermes: { url: "ws://env-gateway:19999", token: "env-token" },
       },
     });

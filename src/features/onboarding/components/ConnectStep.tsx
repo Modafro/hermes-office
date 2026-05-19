@@ -62,14 +62,14 @@ export const ConnectStep = ({
             type="text"
             value={gatewayUrl}
             onChange={(e) => onGatewayUrlChange(e.target.value)}
-            placeholder="ws://localhost:18789 or wss://your-host"
+            placeholder="ws://127.0.0.1:18789 or wss://your-host"
             spellCheck={false}
           />
         </label>
 
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-medium text-white/80">
-            Gateway Token
+            Gateway Token (optional for local Hermes)
           </span>
           <div className="relative">
             <input
@@ -77,7 +77,7 @@ export const ConnectStep = ({
               type={showToken ? "text" : "password"}
               value={token}
               onChange={(e) => onTokenChange(e.target.value)}
-              placeholder="your-gateway-token"
+              placeholder="leave blank for local Hermes"
               spellCheck={false}
             />
             <button
@@ -123,16 +123,19 @@ export const ConnectStep = ({
 
       <div className="space-y-1.5 text-[11px] text-white/40">
         <p>
-          <strong className="text-white/60">Local?</strong> Use{" "}
-          <code className="text-white/50">ws://localhost:18789</code>
+          <strong className="text-white/60">Local Hermes?</strong> Use the
+          adapter URL shown by the startup script, usually{" "}
+          <code className="text-white/50">ws://127.0.0.1:18789</code>
+          {" "}(or 18790 if 18789 is occupied), and leave the token blank.
         </p>
         <p>
           <strong className="text-white/60">Tailscale?</strong> Use{" "}
           <code className="text-white/50">wss://your-host.ts.net</code>
         </p>
         <p>
-          <strong className="text-white/60">SSH tunnel?</strong> Forward port
-          18789 first, then use localhost.
+          <strong className="text-white/60">SSH tunnel?</strong> Forward the
+          adapter port first (usually 18789, or 18790 when 18789 is occupied),
+          then use 127.0.0.1.
         </p>
       </div>
     </div>

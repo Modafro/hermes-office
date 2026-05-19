@@ -93,7 +93,7 @@ export const GatewayConnectScreen = ({
       return "Connecting to remote gateway…";
     }
     if (isLocal) {
-      return "No local gateway found.";
+      return "Local gateway configured. Click Connect when it is running.";
     }
     return "Not connected to a gateway.";
   }, [isLocal, localPort, status]);
@@ -342,7 +342,7 @@ export const GatewayConnectScreen = ({
             <p className="mt-1 text-xs leading-snug text-muted-foreground">
               Run <span className="font-mono text-foreground">npm run hermes-adapter</span>, then choose
               <span className="font-mono text-foreground"> Hermes backend</span>. The default local URL is
-              <span className="font-mono text-foreground"> ws://localhost:18789</span>.
+              <span className="font-mono text-foreground"> ws://127.0.0.1:{localPort}</span>.
             </p>
           </div>
           <div className="rounded-md border border-border bg-muted/30 px-3 py-3">
@@ -369,7 +369,9 @@ export const GatewayConnectScreen = ({
             <div className="ui-input rounded-md px-3 py-3">
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  Use token from <span className="font-mono">~/.openclaw/openclaw.json</span>.
+                  {localGatewayDefaults.adapterType === "hermes"
+                    ? "Hermes local adapter detected; token can stay blank for the local adapter."
+                    : "Use token from ~/.openclaw/openclaw.json."}
                 </p>
                 <p className="font-mono text-[11px] text-foreground">
                   {localGatewayDefaults.url}

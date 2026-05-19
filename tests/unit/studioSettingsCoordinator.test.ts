@@ -21,11 +21,11 @@ describe("StudioSettingsCoordinator", () => {
     const coordinator = new StudioSettingsCoordinator({ fetchSettings, updateSettings }, 300);
 
     coordinator.schedulePatch({
-      gateway: { url: "ws://localhost:18789", token: "abc" },
+      gateway: { url: "ws://127.0.0.1:18789", token: "abc" },
     });
     coordinator.schedulePatch({
       focused: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           mode: "focused",
           filter: "running",
           selectedAgentId: null,
@@ -37,9 +37,9 @@ describe("StudioSettingsCoordinator", () => {
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
     expect(updateSettings).toHaveBeenCalledWith({
-      gateway: { url: "ws://localhost:18789", token: "abc" },
+      gateway: { url: "ws://127.0.0.1:18789", token: "abc" },
       focused: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           mode: "focused",
           filter: "running",
           selectedAgentId: null,
@@ -59,7 +59,7 @@ describe("StudioSettingsCoordinator", () => {
       {
         gateway: {
           lastKnownGood: {
-            url: "ws://localhost:18789",
+            url: "ws://127.0.0.1:18789",
             token: undefined,
             adapterType: "openclaw",
           },
@@ -97,7 +97,7 @@ describe("StudioSettingsCoordinator", () => {
           },
         },
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: undefined,
           adapterType: "openclaw",
         },
@@ -121,7 +121,7 @@ describe("StudioSettingsCoordinator", () => {
           },
         },
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "stored-token",
         },
       },
@@ -151,7 +151,7 @@ describe("StudioSettingsCoordinator", () => {
           },
         },
         lastKnownGood: {
-          url: "ws://localhost:18789",
+          url: "ws://127.0.0.1:18789",
           token: "stored-token",
           adapterType: "openclaw",
         },
@@ -167,14 +167,14 @@ describe("StudioSettingsCoordinator", () => {
     const coordinator = new StudioSettingsCoordinator({ fetchSettings, updateSettings }, 1000);
 
     coordinator.schedulePatch({
-      gateway: { url: "ws://localhost:18789", token: "session-a" },
+      gateway: { url: "ws://127.0.0.1:18789", token: "session-a" },
     });
 
     await coordinator.flushPending();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
     expect(updateSettings).toHaveBeenCalledWith({
-      gateway: { url: "ws://localhost:18789", token: "session-a" },
+      gateway: { url: "ws://127.0.0.1:18789", token: "session-a" },
     });
 
     await vi.advanceTimersByTimeAsync(2000);
@@ -190,7 +190,7 @@ describe("StudioSettingsCoordinator", () => {
 
     coordinator.schedulePatch({
       focused: {
-        "ws://localhost:18789": {
+        "ws://127.0.0.1:18789": {
           mode: "focused",
           filter: "approvals",
           selectedAgentId: null,
