@@ -168,11 +168,13 @@ async function main() {
     throw err;
   }
 
-  const hostForBrowser = hostnames.some((value) => value === "127.0.0.1" || value === "::1")
-    ? "localhost"
-    : hostname === "0.0.0.0" || hostname === "::"
-      ? "localhost"
-      : hostname;
+  const hostForBrowser = hostnames.includes("127.0.0.1")
+    ? "127.0.0.1"
+    : hostnames.includes("::1")
+      ? "[::1]"
+      : hostname === "0.0.0.0" || hostname === "::"
+        ? "127.0.0.1"
+        : hostname;
 
   const protocol = useHttps ? "https" : "http";
   const browserUrl = `${protocol}://${hostForBrowser}:${port}`;

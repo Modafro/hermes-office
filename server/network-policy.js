@@ -26,7 +26,11 @@ const normalizeHost = (host) => {
 const resolveHosts = (env = process.env) => {
   const host = String(env.HOST ?? "").trim();
   if (host) return [host];
-  return ["127.0.0.1", "::1"];
+
+  // Default to IPv4 loopback only. Some Linux desktops/VMs/containers do not
+  // have IPv6 loopback (::1) enabled; binding both 127.0.0.1 and ::1 makes the
+  // whole dev server fail with EADDRNOTAVAIL on those machines.
+  return ["127.0.0.1"];
 };
 
 const resolveHost = (env = process.env) => {

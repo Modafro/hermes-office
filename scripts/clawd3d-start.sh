@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 CLAWD3D_DIR="$(cd -- "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd)"
 LOG_DIR="/tmp/clawd3d-logs"
 mkdir -p "$LOG_DIR"
+LOOPBACK_HOST="${CLAWD3D_HOST:-127.0.0.1}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log()  { echo -e "${GREEN}[clawd3d]${NC} $*"; }
@@ -50,6 +51,27 @@ port_owned_by() {
   return 0
 }
 
+# Find the first port in [start, end] owned by a matching process.
+find_owned_port() {
+  local start=$1 end=$2 pattern=$3 p
+  for p in $(seq "$start" "$end"); do
+    if port_owned_by "$p" "$pattern"; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+open_browser() {
+  local url=$1
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1 || true
+  elif command -v open >/dev/null 2>&1; then
+    open "$url" >/dev/null 2>&1 || true
+  fi
+}
+
 # ── 1. Hermes gateway (API, default 8642) ────────────────────────────────────
 HERMES_PORT=8642
 if ! port_free $HERMES_PORT; then
@@ -68,30 +90,37 @@ else
   nohup hermes gateway run > "$LOG_DIR/hermes-gateway.log" 2>&1 &
   sleep 2
 fi
-HERMES_API_URL="http://localhost:$HERMES_PORT"
+HERMES_API_URL="http://$LOOPBACK_HOST:$HERMES_PORT"
 
 # ── 2. Hermes adapter (WebSocket bridge, default 18789) ──────────────────────
 ADAPTER_PORT=18789
+ADAPTER_PATTERN="node.*hermes-gateway-adapter"
 if ! port_free $ADAPTER_PORT; then
-  if port_owned_by $ADAPTER_PORT "node.*hermes-gateway-adapter"; then
+  if port_owned_by $ADAPTER_PORT "$ADAPTER_PATTERN"; then
     warn "Hermes adapter already running on :$ADAPTER_PORT — reusing."
   else
-    ADAPTER_PORT=$(find_free_port $((ADAPTER_PORT + 1)))
-    warn "Port 18789 taken by another process → using :$ADAPTER_PORT for adapter."
-    log "Starting Hermes adapter on :$ADAPTER_PORT..."
-    cd "$CLAWD3D_DIR"
-    nohup env HERMES_ADAPTER_PORT="$ADAPTER_PORT" HERMES_API_URL="$HERMES_API_URL" \
-      npm run hermes-adapter > "$LOG_DIR/hermes-adapter.log" 2>&1 &
-    sleep 1
+    existing_adapter_port=$(find_owned_port $((ADAPTER_PORT + 1)) $((ADAPTER_PORT + 50)) "$ADAPTER_PATTERN" || true)
+    if [ -n "$existing_adapter_port" ]; then
+      ADAPTER_PORT="$existing_adapter_port"
+      warn "Hermes adapter already running on :$ADAPTER_PORT — reusing."
+    else
+      ADAPTER_PORT=$(find_free_port $((ADAPTER_PORT + 1)))
+      warn "Port 18789 taken by another process → using :$ADAPTER_PORT for adapter."
+      log "Starting Hermes adapter on :$ADAPTER_PORT..."
+      cd "$CLAWD3D_DIR"
+      nohup env HERMES_ADAPTER_HOST="$LOOPBACK_HOST" HERMES_ADAPTER_PORT="$ADAPTER_PORT" HERMES_ADAPTER_STRICT_PORT=true HERMES_API_URL="$HERMES_API_URL" \
+        npm run hermes-adapter > "$LOG_DIR/hermes-adapter.log" 2>&1 &
+      sleep 1
+    fi
   fi
 else
   log "Starting Hermes adapter on :$ADAPTER_PORT..."
   cd "$CLAWD3D_DIR"
-  nohup env HERMES_ADAPTER_PORT="$ADAPTER_PORT" HERMES_API_URL="$HERMES_API_URL" \
+  nohup env HERMES_ADAPTER_HOST="$LOOPBACK_HOST" HERMES_ADAPTER_PORT="$ADAPTER_PORT" HERMES_ADAPTER_STRICT_PORT=true HERMES_API_URL="$HERMES_API_URL" \
     npm run hermes-adapter > "$LOG_DIR/hermes-adapter.log" 2>&1 &
   sleep 1
 fi
-GATEWAY_WS_URL="ws://localhost:$ADAPTER_PORT"
+GATEWAY_WS_URL="ws://$LOOPBACK_HOST:$ADAPTER_PORT"
 
 # ── 3. Next.js dev server (default 3000) ─────────────────────────────────────
 APP_PORT=3000
@@ -103,13 +132,13 @@ if ! port_free $APP_PORT; then
     warn "Port 3000 taken by another process → using :$APP_PORT for Clawd3D."
     log "Starting Clawd3D dev server on :$APP_PORT..."
     cd "$CLAWD3D_DIR"
-    nohup env PORT="$APP_PORT" NEXT_PUBLIC_GATEWAY_URL="$GATEWAY_WS_URL" \
+    nohup env HOST="$LOOPBACK_HOST" PORT="$APP_PORT" NEXT_PUBLIC_GATEWAY_URL="$GATEWAY_WS_URL" CLAW3D_GATEWAY_URL="$GATEWAY_WS_URL" CLAW3D_GATEWAY_ADAPTER_TYPE=hermes HERMES_ADAPTER_PORT="$ADAPTER_PORT" \
       npm run dev > "$LOG_DIR/clawd3d-dev.log" 2>&1 &
   fi
 else
   log "Starting Clawd3D dev server on :$APP_PORT..."
   cd "$CLAWD3D_DIR"
-  nohup env PORT="$APP_PORT" NEXT_PUBLIC_GATEWAY_URL="$GATEWAY_WS_URL" \
+  nohup env HOST="$LOOPBACK_HOST" PORT="$APP_PORT" NEXT_PUBLIC_GATEWAY_URL="$GATEWAY_WS_URL" CLAW3D_GATEWAY_URL="$GATEWAY_WS_URL" CLAW3D_GATEWAY_ADAPTER_TYPE=hermes HERMES_ADAPTER_PORT="$ADAPTER_PORT" \
     npm run dev > "$LOG_DIR/clawd3d-dev.log" 2>&1 &
 fi
 
@@ -117,7 +146,7 @@ fi
 log "Waiting for Clawd3D to be ready at :$APP_PORT..."
 ready=0
 for i in $(seq 1 90); do
-  if curl -sf "http://localhost:$APP_PORT" > /dev/null 2>&1; then
+  if curl -sf "http://$LOOPBACK_HOST:$APP_PORT" > /dev/null 2>&1; then
     ready=1; break
   fi
   sleep 1
@@ -127,11 +156,13 @@ if [ "$ready" -eq 0 ]; then
 fi
 
 # ── 5. Open browser ───────────────────────────────────────────────────────────
-open "http://localhost:$APP_PORT"
+if [ "${CLAWD3D_NO_OPEN:-0}" != "1" ]; then
+  open_browser "http://$LOOPBACK_HOST:$APP_PORT"
+fi
 
 echo ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-log " Clawd3D      →  http://localhost:$APP_PORT"
+log " Clawd3D      →  http://$LOOPBACK_HOST:$APP_PORT"
 info " Gateway WS   →  $GATEWAY_WS_URL"
 info " Hermes API   →  $HERMES_API_URL"
 info " Logs         →  $LOG_DIR/"

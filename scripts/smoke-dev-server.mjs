@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -20,13 +21,18 @@ const getFreePort = async () => {
 
 const main = async () => {
   const port = await getFreePort();
-  const url = `http://127.0.0.1:${port}/`;
+  const host = "127.0.0.1";
+  const distDir = `.next-smoke-${process.pid}-${port}`;
+  const tsconfigPath = "tsconfig.json";
+  const originalTsconfig = await readFile(tsconfigPath, "utf8").catch(() => null);
+  const url = `http://${host}:${port}/`;
 
   const child = spawn(process.execPath, ["server/index.js", "--dev"], {
     env: {
       ...process.env,
-      HOST: "127.0.0.1",
+      HOST: host,
       PORT: String(port),
+      NEXT_DIST_DIR: distDir,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -72,6 +78,8 @@ const main = async () => {
   } finally {
     child.kill("SIGTERM");
     await Promise.race([new Promise((r) => child.once("exit", r)), sleep(2000)]);
+    if (originalTsconfig !== null) await writeFile(tsconfigPath, originalTsconfig);
+    await rm(distDir, { recursive: true, force: true });
   }
 };
 

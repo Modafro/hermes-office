@@ -14,9 +14,11 @@
  * conversation history, system prompt, and settings.
  *
  * Environment variables:
- *   HERMES_API_URL        Hermes HTTP API base URL   (default: http://localhost:8642)
+ *   HERMES_API_URL        Hermes HTTP API base URL   (default: http://127.0.0.1:8642)
  *   HERMES_API_KEY        Bearer token for Hermes     (default: empty)
  *   HERMES_ADAPTER_PORT   WebSocket port              (default: 18789)
+ *   HERMES_ADAPTER_HOST   WebSocket bind host         (default: 127.0.0.1)
+ *   HERMES_ADAPTER_STRICT_PORT=true to fail instead of auto-trying the next port
  *   HERMES_MODEL          Model identifier            (default: hermes)
  *   HERMES_AGENT_NAME     Display name in Claw3D UI   (default: Hermes)
  */
@@ -56,9 +58,11 @@ function loadRuntimeEnv() {
 
 loadRuntimeEnv();
 
-const HERMES_API_URL = (process.env.HERMES_API_URL || "http://localhost:8642").replace(/\/$/, "");
+const HERMES_API_URL = (process.env.HERMES_API_URL || "http://127.0.0.1:8642").replace(/\/$/, "");
 const HERMES_API_KEY = process.env.HERMES_API_KEY || "";
 const ADAPTER_PORT = parseInt(process.env.HERMES_ADAPTER_PORT || "18789", 10);
+const ADAPTER_HOST = process.env.HERMES_ADAPTER_HOST || "127.0.0.1";
+const STRICT_ADAPTER_PORT = process.env.HERMES_ADAPTER_STRICT_PORT === "true";
 const HERMES_MODEL = process.env.HERMES_MODEL || "hermes";
 const HERMES_AGENT_NAME = process.env.HERMES_AGENT_NAME || "Hermes";
 const HOME = process.env.HOME || "/tmp";
@@ -1173,7 +1177,40 @@ async function handleMethod(method, params, id, sendEvent) {
 // WebSocket server
 // ---------------------------------------------------------------------------
 
-function startAdapter() {
+function listenWithPortFallback(httpServer, requestedPort) {
+  const firstPort = Number.isFinite(requestedPort) && requestedPort > 0 ? requestedPort : 18789;
+  const maxPort = firstPort + 50;
+
+  return new Promise((resolve, reject) => {
+    let port = firstPort;
+
+    const tryListen = () => {
+      const onListening = () => {
+        httpServer.off("error", onError);
+        resolve(port);
+      };
+      const onError = (err) => {
+        httpServer.off("listening", onListening);
+        if (err?.code === "EADDRINUSE" && !STRICT_ADAPTER_PORT && port < maxPort) {
+          const nextPort = port + 1;
+          console.warn(`[hermes-adapter] Port ${port} in use; trying ${nextPort}.`);
+          port = nextPort;
+          setImmediate(tryListen);
+          return;
+        }
+        reject(err);
+      };
+
+      httpServer.once("listening", onListening);
+      httpServer.once("error", onError);
+      httpServer.listen(port, ADAPTER_HOST);
+    };
+
+    tryListen();
+  });
+}
+
+async function startAdapter() {
   const httpServer = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("Hermes Gateway Adapter – OK\n");
@@ -1257,20 +1294,24 @@ function startAdapter() {
     });
   });
 
-  httpServer.listen(ADAPTER_PORT, "127.0.0.1", () => {
-    console.log(`\n[hermes-adapter] ✓ Listening on ws://localhost:${ADAPTER_PORT}`);
+  try {
+    const activePort = await listenWithPortFallback(httpServer, ADAPTER_PORT);
+    console.log(`\n[hermes-adapter] ✓ Listening on ws://${ADAPTER_HOST}:${activePort}`);
     console.log(`[hermes-adapter] ✓ Forwarding to Hermes API at ${HERMES_API_URL}`);
     console.log(`[hermes-adapter] ✓ Model: ${HERMES_MODEL}`);
     console.log(`[hermes-adapter] ✓ Multi-agent orchestration: ENABLED`);
-    console.log(`\nOpen Claw3D → ws://localhost:${ADAPTER_PORT}\n`);
-  });
-
-  httpServer.on("error", (err) => {
-    if (err.code === "EADDRINUSE") {
-      console.error(`[hermes-adapter] Port ${ADAPTER_PORT} in use. Set HERMES_ADAPTER_PORT to change it.`);
+    console.log(`\nOpen Claw3D → ws://${ADAPTER_HOST}:${activePort}\n`);
+  } catch (err) {
+    if (err?.code === "EADDRINUSE") {
+      console.error(`[hermes-adapter] Port ${ADAPTER_PORT} in use. Set HERMES_ADAPTER_PORT to change it, or unset HERMES_ADAPTER_STRICT_PORT to allow automatic fallback.`);
     } else {
       console.error("[hermes-adapter] Server error:", sanitizeErrorMessage(err));
     }
+    process.exit(1);
+  }
+
+  httpServer.on("error", (err) => {
+    console.error("[hermes-adapter] Server error:", sanitizeErrorMessage(err));
     process.exit(1);
   });
 }

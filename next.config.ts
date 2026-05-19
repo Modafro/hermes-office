@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+const smokeDistDir = process.env.NEXT_DIST_DIR?.trim();
+
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
@@ -57,6 +59,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
+  ...(smokeDistDir ? { distDir: smokeDistDir } : {}),
   turbopack: {
     root: path.resolve(__dirname),
   },

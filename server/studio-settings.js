@@ -56,10 +56,44 @@ const readJsonFile = (filePath) => {
   return JSON.parse(raw);
 };
 
-const DEFAULT_GATEWAY_URL = "ws://localhost:18789";
+const DEFAULT_LOCAL_GATEWAY_HOST = "127.0.0.1";
+const DEFAULT_GATEWAY_PORT = 18789;
+const DEFAULT_GATEWAY_URL = `ws://${DEFAULT_LOCAL_GATEWAY_HOST}:${DEFAULT_GATEWAY_PORT}`;
 const OPENCLAW_CONFIG_FILENAME = "openclaw.json";
 
 const isRecord = (value) => Boolean(value && typeof value === "object");
+
+const localGatewayUrl = (port) => `ws://${DEFAULT_LOCAL_GATEWAY_HOST}:${port}`;
+
+const normalizeAdapterType = (value) => {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ["openclaw", "hermes", "demo", "local", "claw3d", "custom"].includes(normalized)
+    ? normalized
+    : null;
+};
+
+const readPortBasedGatewayDefaults = (env, adapterType, envKey) => {
+  const rawPort = typeof env[envKey] === "string" ? env[envKey].trim() : "";
+  if (!rawPort) return null;
+  const port = Number.parseInt(rawPort, 10);
+  if (!Number.isFinite(port) || port <= 0) return null;
+  return { url: localGatewayUrl(port), token: "", adapterType };
+};
+
+const buildEnvGatewayDefaults = (env = process.env) => {
+  const envUrl =
+    (typeof env.CLAW3D_GATEWAY_URL === "string" ? env.CLAW3D_GATEWAY_URL.trim() : "") ||
+    (typeof env.NEXT_PUBLIC_GATEWAY_URL === "string" ? env.NEXT_PUBLIC_GATEWAY_URL.trim() : "");
+  const token = typeof env.CLAW3D_GATEWAY_TOKEN === "string" ? env.CLAW3D_GATEWAY_TOKEN.trim() : "";
+  const hermesDefaults = readPortBasedGatewayDefaults(env, "hermes", "HERMES_ADAPTER_PORT");
+  const demoDefaults = readPortBasedGatewayDefaults(env, "demo", "DEMO_ADAPTER_PORT");
+  const adapterType =
+    normalizeAdapterType(env.CLAW3D_GATEWAY_ADAPTER_TYPE) ||
+    (hermesDefaults ? "hermes" : demoDefaults ? "demo" : "openclaw");
+
+  if (envUrl) return { url: envUrl, token, adapterType };
+  return hermesDefaults || demoDefaults || null;
+};
 
 const readOpenclawGatewayDefaults = (env = process.env) => {
   try {
@@ -74,7 +108,7 @@ const readOpenclawGatewayDefaults = (env = process.env) => {
     const port =
       typeof gateway.port === "number" && Number.isFinite(gateway.port) ? gateway.port : null;
     if (!token) return null;
-    const url = port ? `ws://localhost:${port}` : "";
+    const url = port ? localGatewayUrl(port) : "";
     if (!url) return null;
     return { url, token, adapterType: "openclaw" };
   } catch {
@@ -84,6 +118,14 @@ const readOpenclawGatewayDefaults = (env = process.env) => {
 
 const loadUpstreamGatewaySettings = (env = process.env) => {
   const settingsPath = resolveStudioSettingsPath(env);
+  const envDefaults = buildEnvGatewayDefaults(env);
+  if (envDefaults) {
+    return {
+      ...envDefaults,
+      settingsPath,
+    };
+  }
+
   const parsed = readJsonFile(settingsPath);
   const gateway = parsed && typeof parsed === "object" ? parsed.gateway : null;
   const url = typeof gateway?.url === "string" ? gateway.url.trim() : "";
